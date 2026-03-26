@@ -301,6 +301,10 @@ class ClaudeController:
         if self._proc.poll() is not None:
             return False
 
+        # Claude CLI with stdin PIPE requires at least one input message before producing
+        # any output (including init). Send an empty intro to trigger the init response.
+        self._write("")
+
         if wait_init_timeout > 0:
             return self._wait_for_init(wait_init_timeout)
 
