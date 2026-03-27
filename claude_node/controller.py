@@ -194,6 +194,7 @@ class ClaudeController:
         bare: bool = False,
         resume: str = None,
         continue_session: bool = False,
+        fork_session: bool = False,
         model: str = None,
         cwd: str = None,
         add_dirs: list[str] = None,
@@ -232,8 +233,12 @@ class ClaudeController:
             self._cmd += ["--model", model]
         if resume:
             self._cmd += ["--resume", resume]
+            if fork_session:
+                self._cmd.append("--fork-session")
         elif continue_session:
             self._cmd.append("--continue")
+            if fork_session:
+                self._cmd.append("--fork-session")
         if add_dirs:
             for d in add_dirs:
                 self._cmd += ["--add-dir", d]
@@ -257,6 +262,7 @@ class ClaudeController:
             "permission_mode": permission_mode,
             "skip_permissions": skip_permissions,
             "bare": bare,
+            "fork_session": fork_session,
             "model": model,
             "cwd": cwd,
             "add_dirs": add_dirs,
