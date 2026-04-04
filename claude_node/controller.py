@@ -283,6 +283,9 @@ class ClaudeController:
         check_claude_available()  # raises ClaudeBinaryNotFound if missing
         if self._transcript_path:
             self._transcript_file = open(self._transcript_path, "a", encoding="utf-8")
+        env = {**os.environ, "TERM": "dumb"}
+        if env.get("ANTHROPIC_AUTH_TOKEN") and not env.get("ANTHROPIC_API_KEY"):
+            env["ANTHROPIC_API_KEY"] = env["ANTHROPIC_AUTH_TOKEN"]
         self._proc = subprocess.Popen(
             self._cmd,
             stdin=subprocess.PIPE,
@@ -290,7 +293,7 @@ class ClaudeController:
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
-            env={**os.environ, "TERM": "dumb"},
+            env=env,
             cwd=self.cwd,
         )
         threading.Thread(
@@ -308,11 +311,21 @@ class ClaudeController:
             return False
 
         # Claude CLI with stdin PIPE requires at least one input message before producing
-        # any output (including init). Send an empty intro to trigger the init response.
+        # any output (including init). Send an empty bootstrap message first.
+        bootstrap_start_index = len(self._out_buf)
         self._write("")
 
         if wait_init_timeout > 0:
-            return self._wait_for_init(wait_init_timeout)
+            if not self._wait_for_init(wait_init_timeout):
+                return False
+
+            # MiniMax/Claude CLI may emit a deferred "ready" result for the empty bootstrap
+            # message. Drain that result here so the first real send() is not polluted by it.
+            bootstrap_timeout = min(wait_init_timeout, 15.0)
+            bootstrap_result = self._wait_result(bootstrap_start_index, bootstrap_timeout)
+            if bootstrap_result and bootstrap_result.session_id:
+                self._session_id = bootstrap_result.session_id
+            return True
 
         return True
 
